@@ -14,6 +14,8 @@
 
 注意网络：**国内 VPS 直连 Telegram 通常不通**（api.telegram.org 被墙），这种机器只能用微信；**海外 VPS 两个都能用**。一键安装时会让你选，也可以装完再改 `config.env`。
 
+实测（2026-11-19，v1.1.1）：在海外 VPS（Debian 13，Python 3.13.5）上，`--test` 和真实新增推送都同时发到了微信和 Telegram；Telegram 直连可用，不用代理；PushPlus 发送接口很快。
+
 ## 部署
 
 ### 一键安装（Debian / Ubuntu）
