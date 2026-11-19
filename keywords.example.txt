@@ -1,0 +1,13 @@
+# keywords.txt 示例：每行「关键词=标注」，# 开头为注释，空行跳过。
+# 命中厂商、产品或漏洞名时，推送里会标；没命中标。
+# 把这个文件复制为 keywords.txt 再按自己的设备改。keywords.txt 是各人自己的设备清单，不要提交到仓库。
+nginx=Nginx
+openresty=OpenResty
+java=Java
+openjdk=Java
+debian=Debian
+linux kernel=Linux 内核
+docker=Docker
+openssl=OpenSSL
+apache=Apache
+python=Python
