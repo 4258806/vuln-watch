@@ -24,9 +24,10 @@ vuln-watch: CISA KEV 漏洞监控。
 keywords.txt 不存在时不标注（全部为【其他】）。keywords.txt 是各人自己的设备清单，
 不要放进公开仓库；仓库里只放 keywords.example.txt 作示例。
 
-翻译：描述、名称、处置默认用 MyMemory 免费接口翻成中文（config.env 里 TRANSLATE=0 可关；
+翻译：描述、名称默认用 MyMemory 免费接口翻成中文（config.env 里 TRANSLATE=0 可关；
 翻译失败时用原文，绝不因此不推送）。修复信息：每条附 notes 里第一个厂商公告链接
-（没有时不显示）和 NVD 详情链接。
+（没有时不显示）和 NVD 详情链接。处置（requiredAction）不显示：1786 条里只有 44 种
+不同写法，基本都是“按厂商说明打补丁”之类的套话，真正的修复方法在厂商公告链接里。
 """
 import argparse
 import html
@@ -44,7 +45,7 @@ KEV_URL = "https://www.cisa.gov/sites/default/files/feeds/known_exploited_vulner
 PUSHPLUS_URL = "https://www.pushplus.plus/send"
 TELEGRAM_API_URL = "https://api.telegram.org/bot%s/sendMessage"
 MYMEMORY_URL = "https://api.mymemory.translated.net/get"
-__version__ = "1.1.0"
+__version__ = "1.1.1"
 USER_AGENT = "vuln-watch/%s (personal KEV monitor)" % __version__
 FETCH_TIMEOUT = 30
 TG_MESSAGE_LIMIT = 4000
@@ -182,11 +183,9 @@ def format_message(new_entries, today, keywords, translate=None):
         flag = "【相关：%s】" % "、".join(tags) if tags else "【其他】"
         name = e.get("vulnerabilityName", "")
         desc = (e.get("shortDescription") or "").strip()
-        action = (e.get("requiredAction") or "").strip()
         if translate:
             name = translate(name) or name
             desc = translate(desc) or desc
-            action = translate(action) or action
         if len(desc) > 200:
             desc = desc[:200] + "……"
         parts.append("<br>————<br>")
@@ -198,10 +197,6 @@ def format_message(new_entries, today, keywords, translate=None):
             esc(e.get("dateAdded", "")), esc(e.get("dueDate", ""))))
         if desc:
             parts.append("描述：%s<br>" % esc(desc))
-        if len(action) > 120:
-            action = action[:120] + "……"
-        if action:
-            parts.append("处置：%s<br>" % esc(action))
         vurl = vendor_url(e)
         if vurl:
             parts.append("修复参考：<a href=\"%s\">厂商公告</a><br>" % html.escape(vurl, quote=True))
