@@ -1,0 +1,16 @@
+# Changelog
+
+版本号遵循语义化版本（SemVer）：主版本.次版本.修订号。
+
+## 1.0.0 — 2026-11-19
+
+首个正式版本。
+
+- CISA KEV 监控：定时拉清单，只推新增条目，没新增不打扰
+- 推送通道：微信 PushPlus / Telegram，二选一或两个都推
+- 一键安装 `install.sh`（Debian / Ubuntu），重复运行不覆盖已有配置和状态
+- 定时任务可自定义（`CRON_SCHEDULE` / 交互输入，默认每天 09:00）
+- 关键词相关度标注（`keywords.txt`），命中自家设备标
+- 推送失败不更新状态，下次重试；Telegram 超长内容自动分多条
+- 单元测试（`test_vuln_watch.py`，标准库 unittest）
+- 一键卸载 `uninstall.sh`
