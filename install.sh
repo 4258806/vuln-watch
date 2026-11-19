@@ -14,6 +14,7 @@
 #   PUSHPLUS_TOKEN       PushPlus token（微信），设置后自动写入配置
 #   TG_BOT_TOKEN         Telegram bot token（@BotFather 拿）
 #   TG_CHAT_ID           Telegram chat_id（给 bot 发消息后查）
+#   CRON_SCHEDULE        定时任务（cron 表达式，默认每天 09:00，如 0 */6 * * *）
 #   INSTALL_DIR          安装目录，默认 /opt/vuln-watch
 #   VULN_WATCH_BASE_URL  文件来源，默认 GitHub raw（可换镜像或 fork）
 #   SKIP_CRON=1          跳过安装定时任务
@@ -41,6 +42,15 @@ fill_empty() {  # $1=字段名 $2=值：config.env 里该字段为空且给了�
     sed -i "s|^$1=$|$1=$esc|" "$INSTALL_DIR/config.env" && info "已把 $1 写入已有的 config.env"
   fi
 }
+
+valid_schedule() {  # cron 表达式：5 段，数字/字母/*/,- 组成
+  printf '%s' "$1" | grep -Eq '^[A-Za-z0-9*,/-]+ [A-Za-z0-9*,/-]+ [A-Za-z0-9*,/-]+ [A-Za-z0-9*,/-]+ [A-Za-z0-9*,/-]+$'
+}
+
+# 环境变量给的定时任务先校验，不对就尽早报错
+if [ -n "${CRON_SCHEDULE:-}" ]; then
+  valid_schedule "$CRON_SCHEDULE" || die "CRON_SCHEDULE 格式不对：'$CRON_SCHEDULE'（要 5 段，如 0 9 * * *）"
+fi
 
 # 1. 必须是 root
 [ "$(id -u)" -eq 0 ] || die "请用 root 或 sudo 运行（sudo bash install.sh）"
@@ -157,16 +167,43 @@ else
   python3 "$INSTALL_DIR/vuln-watch.py" --config "$INSTALL_DIR/config.env" --state "$INSTALL_DIR/seen.json" --dry-run || info "基线建立未成功，可稍后手动跑一次"
 fi
 
-# 9. 定时任务：每天 09:00（用文件装 crontab，不用 stdin）
+# 9. 定时任务（可自定义，默认每天 09:00；用文件装 crontab，不用 stdin）
+#   优先级：CRON_SCHEDULE 环境变量 > 已装好的那一行 > 交互输入 > 默认
+SCHEDULE="0 9 * * *"
+if [ -n "${CRON_SCHEDULE:-}" ]; then
+  SCHEDULE="$CRON_SCHEDULE"
+elif command -v crontab >/dev/null 2>&1; then
+  existing="$(crontab -l 2>/dev/null | grep "vuln-watch.py" | head -n 1 || true)"
+  if [ -n "$existing" ]; then
+    SCHEDULE="$(printf '%s' "$existing" | awk '{print $1, $2, $3, $4, $5}')"
+    info "已装好的定时任务保持不变：$SCHEDULE"
+  elif [ -r /dev/tty ]; then
+    echo "定时任务（cron 表达式，默认每天 09:00；如每 6 小时：0 */6 * * *）"
+    printf "请输入 [默认 0 9 * * *]: "
+    { read -r input < /dev/tty; } 2>/dev/null || input=""
+    if [ -n "$input" ]; then
+      if valid_schedule "$input"; then
+        SCHEDULE="$input"
+      else
+        info "格式不对，用默认每天 09:00"
+      fi
+    fi
+  fi
+fi
 if [ "${SKIP_CRON:-0}" = "1" ]; then
-  info "SKIP_CRON=1，跳过定时任务"
+  info "SKIP_CRON=1，跳过定时任务（选好的时间表：$SCHEDULE）"
 else
-  cron_line="0 9 * * * /usr/bin/python3 $INSTALL_DIR/vuln-watch.py --config $INSTALL_DIR/config.env --state $INSTALL_DIR/seen.json >> $INSTALL_DIR/vuln-watch.log 2>&1"
+  cron_line="$SCHEDULE /usr/bin/python3 $INSTALL_DIR/vuln-watch.py --config $INSTALL_DIR/config.env --state $INSTALL_DIR/seen.json >> $INSTALL_DIR/vuln-watch.log 2>&1"
   if command -v crontab >/dev/null 2>&1; then
     cron_tmp="$(mktemp)"
     crontab -l 2>/dev/null | grep -v "vuln-watch.py" > "$cron_tmp" || true
     echo "$cron_line" >> "$cron_tmp"
-    crontab "$cron_tmp" && info "定时任务已安装：每天 09:00"
+    if crontab "$cron_tmp"; then
+      info "定时任务已安装：$SCHEDULE"
+    else
+      info "定时任务安装失败，请手动加一行："
+      echo "  $cron_line"
+    fi
     rm -f "$cron_tmp"
   else
     info "系统没有 crontab，定时任务未安装，请手动加一行："
@@ -194,6 +231,7 @@ if grep -q "^TG_BOT_TOKEN=[^[:space:]]" "$INSTALL_DIR/config.env" 2>/dev/null &&
 fi
 [ -n "$channels" ] || channels="未配置"
 echo "  推送通道：$channels"
+echo "  定时任务：$SCHEDULE"
 echo "  脚本：$INSTALL_DIR/vuln-watch.py"
 echo "  配置：$INSTALL_DIR/config.env（600）"
 echo "  关键词：$INSTALL_DIR/keywords.txt"
