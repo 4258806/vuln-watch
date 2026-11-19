@@ -37,7 +37,8 @@ from datetime import date
 KEV_URL = "https://www.cisa.gov/sites/default/files/feeds/known_exploited_vulnerabilities.json"
 PUSHPLUS_URL = "https://www.pushplus.plus/send"
 TELEGRAM_API_URL = "https://api.telegram.org/bot%s/sendMessage"
-USER_AGENT = "vuln-watch/1.0 (personal KEV monitor)"
+__version__ = "1.0.0"
+USER_AGENT = "vuln-watch/%s (personal KEV monitor)" % __version__
 FETCH_TIMEOUT = 30
 TG_MESSAGE_LIMIT = 4000
 
@@ -207,6 +208,7 @@ def tg_send(token, chat_id, text):
 def main():
     here = os.path.dirname(os.path.abspath(__file__))
     ap = argparse.ArgumentParser(description="CISA KEV 漏洞监控（PushPlus / Telegram 推送）")
+    ap.add_argument("--version", action="version", version="vuln-watch " + __version__)
     ap.add_argument("--config", default=os.path.join(here, "config.env"))
     ap.add_argument("--state", default=os.path.join(here, "seen.json"))
     ap.add_argument("--kev-url", default=KEV_URL)
