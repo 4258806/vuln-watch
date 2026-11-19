@@ -6,6 +6,26 @@
 
 ## 部署
 
+### 一键安装（Debian / Ubuntu）
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/4258806/vuln-watch/main/install.sh | sudo bash
+```
+
+安装脚本会：检查系统（Debian / Ubuntu）和 python3、把文件装到 `/opt/vuln-watch`、问你要 PushPlus token（也可先不填，装完再改 `config.env`）、首次运行建基线、加每天 09:00 的定时任务、可选发一条测试推送。重复运行不会覆盖已有的配置、关键词和状态。
+
+先看再装也行：
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/4258806/vuln-watch/main/install.sh -o install.sh
+less install.sh
+sudo bash install.sh
+```
+
+卸载：`rm -rf /opt/vuln-watch`，再从 crontab 里删掉 vuln-watch 那一行。
+
+### 手动安装
+
 ```bash
 # 1. 配 token（去 pushplus.plus 拿）
 cp config.example.env config.env # 然后填 PUSHPLUS_TOKEN
@@ -22,6 +42,7 @@ python3 vuln-watch.py
 | 文件 | 说明 | 进仓库 |
 | --- | --- | --- |
 | `vuln-watch.py` | 监控脚本 | 是 |
+| `install.sh` | 一键安装脚本（Debian / Ubuntu） | 是 |
 | `config.example.env` | 配置示例 | 是 |
 | `keywords.example.txt` | 关键词示例 | 是 |
 | `config.env` | 你的 PushPlus token | 否 |
@@ -39,7 +60,7 @@ PUSHPLUS_TEMPLATE=html
 KEYWORDS_FILE=keywords.txt（可选，默认脚本同目录的 keywords.txt）
 ```
 
-`keywords.txt`：每行 `关键词=标注`，命中厂商、产品或漏洞名时推送里标。命中多个标多个。
+`keywords.txt`：每行 `关键词=标注`，命中厂商、产品或漏洞名时推送里标【相关】。命中多个标多个。
 
 ## 行为
 
