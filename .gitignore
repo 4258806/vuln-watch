@@ -1,0 +1,7 @@
+# 本机配置与运行状态，不进仓库
+config.env
+keywords.txt
+seen.json
+*.log
+__pycache__/
+*.tmp
