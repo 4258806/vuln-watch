@@ -1,6 +1,6 @@
 # vuln-watch
 
-每天拉一次 [CISA KEV](https://www.cisa.gov/known-exploited-vulnerabilities-catalog)（在野外已被利用的漏洞清单），有新增条目就推送到微信（PushPlus）或 Telegram，两个通道可以任选其一，也可以两个都要。没新增就不打扰。
+定时拉一次 [CISA KEV](https://www.cisa.gov/known-exploited-vulnerabilities-catalog)（在野外已被利用的漏洞清单），有新增条目就推送到微信（PushPlus）或 Telegram，两个通道可以任选其一，也可以两个都要。没新增就不打扰。默认每天 09:00 跑一次，时间可以改（见下面的定时任务）。
 
 独立小脚本，不依赖任何面板；Python 3 标准库，无第三方包。
 
@@ -47,6 +47,25 @@ python3 vuln-watch.py
 0 9 * * * /usr/bin/python3 /opt/vuln-watch/vuln-watch.py >> /opt/vuln-watch/vuln-watch.log 2>&1
 ```
 
+### 定时任务
+
+默认每天 09:00，想改就改：
+
+- 交互安装：安装时会问你要 cron 表达式，回车就用默认
+- 环境变量：`CRON_SCHEDULE="0 */6 * * *" curl -fsSL ... | sudo bash`
+- 装完再改：`crontab -e` 找到 vuln-watch 那一行直接改；或者重复运行安装脚本并带新的 `CRON_SCHEDULE`，也会更新（不带就保持已装好的不变）
+
+常用：
+
+| 表达式 | 意思 |
+| --- | --- |
+| `0 9 * * *` | 每天 09:00（默认） |
+| `0 */6 * * *` | 每 6 小时 |
+| `0 */2 * * *` | 每 2 小时 |
+| `0 9,21 * * *` | 每天 09:00 和 21:00 |
+
+注意：脚本只在有新增时才推送，所以跑得勤也不会刷屏，只是新漏洞出现后能更早收到。
+
 ## 文件
 
 | 文件 | 说明 | 进仓库 |
@@ -79,7 +98,7 @@ KEYWORDS_FILE=keywords.txt（可选，默认脚本同目录的 keywords.txt）
 ## 行为
 
 - 首次运行：把当前清单全部记为已见，不推送（避免 1786 条全推出来）。
-- 之后每天：只推新增的；没有新增就不发任何消息。
+- 之后每次运行：只推新增的；没有新增就不发任何消息。
 - 某个通道推送失败时不更新状态，下次运行会重试（已成功的通道可能收到一条重复消息）。
 - Telegram 单条消息上限 4096 字符，内容超长时自动分多条发。
 - `--dry-run` 只打印不发送；`--test` 给已配置的每个通道各发一条测试推送。
