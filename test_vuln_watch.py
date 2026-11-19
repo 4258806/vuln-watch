@@ -218,7 +218,7 @@ class TestFormatMessageTranslated(unittest.TestCase):
             translate=lambda t: "【译】" + t)
         self.assertIn("【译】Acme Widget RCE", content)
         self.assertIn("【译】Acme Widget has a flaw.", content)
-        self.assertIn("【译】Apply the vendor patch.", content)
+        self.assertNotIn("Apply the vendor patch.", content)
         self.assertIn('<a href="https://www.synology.com/zh-tw/security/advisory/Synology_SA_24_20">厂商公告</a>', content)
         self.assertIn('<a href="https://nvd.nist.gov/vuln/detail/CVE-2024-10441">NVD</a>', content)
 
