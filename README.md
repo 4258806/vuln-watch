@@ -32,7 +32,42 @@ less install.sh
 sudo bash install.sh
 ```
 
-卸载：`rm -rf /opt/vuln-watch`，再从 crontab 里删掉 vuln-watch 那一行。
+卸载：`rm -rf /opt/vuln-watch`，再从 crontab 里删掉 vuln-watch 那一行；或者一键卸载：
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/4258806/vuln-watch/main/uninstall.sh | sudo bash
+# 想留着配置以后再装：后面加 --keep-config
+curl -fsSL https://raw.githubusercontent.com/4258806/vuln-watch/main/uninstall.sh | sudo bash -s -- --keep-config
+```
+
+### 推送长什么样
+
+有新增时，微信和 Telegram 收到的大致是这个样子（微信是 HTML 排版，内容一样）：
+
+```
+【漏洞监控】新增 1 条 KEV 漏洞（2026-11-19）
+今日 CISA KEV 清单新增 1 条（在野外已被利用的漏洞），请留意：
+
+————
+CVE-2024-10441 【相关：群晖】
+厂商/产品：Synology - DiskStation Manager (DSM)
+名称：Synology DiskStation Manager (DSM) Improper Encoding or Escaping of Output Vulnerability
+入库：2026-11-18，修复期限：2026-11-21
+描述：Synology DSM contains an improper encoding or escaping of output vulnerability ……
+处置：Apply mitigations in accordance with vendor instructions ……
+————
+来源：CISA KEV（vuln-watch）
+```
+
+命中 `keywords.txt` 里关键词的条目标【相关】，没命中的标【其他】。
+
+### 版本
+
+当前版本 1.0.0，改动见 [CHANGELOG.md](CHANGELOG.md)。一键安装默认装 main 分支最新版；想固定用某个版本：
+
+```bash
+VULN_WATCH_BASE_URL=https://raw.githubusercontent.com/4258806/vuln-watch/v1.0.0 curl -fsSL https://raw.githubusercontent.com/4258806/vuln-watch/main/install.sh | sudo bash
+```
 
 ### 手动安装
 
@@ -72,6 +107,11 @@ python3 vuln-watch.py
 | --- | --- | --- |
 | `vuln-watch.py` | 监控脚本 | 是 |
 | `install.sh` | 一键安装脚本（Debian / Ubuntu） | 是 |
+| `uninstall.sh` | 一键卸载脚本 | 是 |
+| `test_vuln_watch.py` | 单元测试（标准库 unittest） | 是 |
+| `.github/workflows/ci.yml` | CI：每次 push 跑语法检查和测试 | 是 |
+| `LICENSE` | MIT 许可证 | 是 |
+| `CHANGELOG.md` | 版本改动记录 | 是 |
 | `config.example.env` | 配置示例 | 是 |
 | `keywords.example.txt` | 关键词示例 | 是 |
 | `config.env` | 你的 PushPlus token | 否 |
