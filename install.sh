@@ -11,7 +11,9 @@
 #   sudo bash install.sh
 #
 # 环境变量（可选）：
-#   PUSHPLUS_TOKEN       PushPlus token，设置后自动写入配置
+#   PUSHPLUS_TOKEN       PushPlus token（微信），设置后自动写入配置
+#   TG_BOT_TOKEN         Telegram bot token（@BotFather 拿）
+#   TG_CHAT_ID           Telegram chat_id（给 bot 发消息后查）
 #   INSTALL_DIR          安装目录，默认 /opt/vuln-watch
 #   VULN_WATCH_BASE_URL  文件来源，默认 GitHub raw（可换镜像或 fork）
 #   SKIP_CRON=1          跳过安装定时任务
@@ -23,6 +25,22 @@ INSTALL_DIR="${INSTALL_DIR:-/opt/vuln-watch}"
 
 die() { echo "错误：$*" >&2; exit 1; }
 info() { echo "==> $*"; }
+
+has_channel() {  # config.env 里配了至少一个推送通道
+  [ -f "$INSTALL_DIR/config.env" ] || return 1
+  grep -q "^PUSHPLUS_TOKEN=[^[:space:]]" "$INSTALL_DIR/config.env" 2>/dev/null && return 0
+  grep -q "^TG_BOT_TOKEN=[^[:space:]]" "$INSTALL_DIR/config.env" 2>/dev/null \
+    && grep -q "^TG_CHAT_ID=[^[:space:]]" "$INSTALL_DIR/config.env" 2>/dev/null && return 0
+  return 1
+}
+
+fill_empty() {  # $1=字段名 $2=值：config.env 里该字段为空且给了值时补填（已有值绝不覆盖）
+  [ -n "${2:-}" ] || return 0
+  if grep -q "^$1=$" "$INSTALL_DIR/config.env" 2>/dev/null; then
+    esc="$(printf '%s' "$2" | sed 's/[&|]/\\&/g')"
+    sed -i "s|^$1=$|$1=$esc|" "$INSTALL_DIR/config.env" && info "已把 $1 写入已有的 config.env"
+  fi
+}
 
 # 1. 必须是 root
 [ "$(id -u)" -eq 0 ] || die "请用 root 或 sudo 运行（sudo bash install.sh）"
@@ -76,34 +94,64 @@ else
   info "keywords.txt 已存在，保持不变"
 fi
 
-# 7. config.env：只在没有时创建，绝不覆盖已有的 token
+# 7. config.env：只在没有时创建，绝不覆盖已有的值
 if [ ! -f "$INSTALL_DIR/config.env" ]; then
-  token="${PUSHPLUS_TOKEN:-}"
-  if [ -z "$token" ] && [ -r /dev/tty ]; then
-    printf "PushPlus token（去 pushplus.plus 拿，留空稍后手动填）: "
-    { read -r token < /dev/tty; } 2>/dev/null || token=""
-    echo
+  pp_token="${PUSHPLUS_TOKEN:-}"
+  tg_token="${TG_BOT_TOKEN:-}"
+  tg_chat="${TG_CHAT_ID:-}"
+  if [ -z "$pp_token" ] && [ -z "$tg_token" ] && [ -z "$tg_chat" ] && [ -r /dev/tty ]; then
+    echo "推送方式："
+    echo "  1) 微信 PushPlus（国内 VPS、直连 Telegram 不通时选这个）"
+    echo "  2) Telegram（海外 VPS 选这个）"
+    echo "  3) 两个都要"
+    printf "请选择 [1/2/3，默认 1]: "
+    { read -r choice < /dev/tty; } 2>/dev/null || choice=""
+    case "$choice" in
+      2)
+        printf "Telegram bot token（@BotFather 建 bot 拿）: "
+        { read -r tg_token < /dev/tty; } 2>/dev/null || tg_token=""
+        echo
+        printf "Telegram chat_id（给 bot 发消息后用 @userinfobot 查）: "
+        { read -r tg_chat < /dev/tty; } 2>/dev/null || tg_chat=""
+        echo
+        ;;
+      3)
+        printf "PushPlus token（去 pushplus.plus 拿）: "
+        { read -r pp_token < /dev/tty; } 2>/dev/null || pp_token=""
+        echo
+        printf "Telegram bot token（@BotFather 建 bot 拿）: "
+        { read -r tg_token < /dev/tty; } 2>/dev/null || tg_token=""
+        echo
+        printf "Telegram chat_id（给 bot 发消息后用 @userinfobot 查）: "
+        { read -r tg_chat < /dev/tty; } 2>/dev/null || tg_chat=""
+        echo
+        ;;
+      *)
+        printf "PushPlus token（去 pushplus.plus 拿，留空稍后手动填）: "
+        { read -r pp_token < /dev/tty; } 2>/dev/null || pp_token=""
+        echo
+        ;;
+    esac
   fi
   {
     echo "# vuln-watch 配置（不要提交到仓库）"
-    echo "PUSHPLUS_TOKEN=$token"
+    echo "# 推送通道二选一或两个都要：微信填 PUSHPLUS_TOKEN，Telegram 填 TG_BOT_TOKEN + TG_CHAT_ID"
+    echo "PUSHPLUS_TOKEN=$pp_token"
+    echo "TG_BOT_TOKEN=$tg_token"
+    echo "TG_CHAT_ID=$tg_chat"
   } > "$INSTALL_DIR/config.env"
   chmod 600 "$INSTALL_DIR/config.env"
-  if [ -z "$token" ]; then
-    info "config.env 已创建，token 为空——请先填好：$INSTALL_DIR/config.env"
-  fi
-elif grep -q "^PUSHPLUS_TOKEN=$" "$INSTALL_DIR/config.env" && [ -n "${PUSHPLUS_TOKEN:-}" ]; then
-  # 已有 config.env 但 token 为空，且这次给了 token → 补上（已有 token 绝不覆盖）
-  esc_token="$(printf '%s' "$PUSHPLUS_TOKEN" | sed 's/[&|]/\\&/g')"
-  sed -i "s|^PUSHPLUS_TOKEN=$|PUSHPLUS_TOKEN=$esc_token|" "$INSTALL_DIR/config.env"
-  info "已把 token 写入已有的 config.env"
+  has_channel || info "config.env 已创建，但没有配任何推送通道——请填好再跑：$INSTALL_DIR/config.env"
 else
+  fill_empty PUSHPLUS_TOKEN "${PUSHPLUS_TOKEN:-}"
+  fill_empty TG_BOT_TOKEN "${TG_BOT_TOKEN:-}"
+  fill_empty TG_CHAT_ID "${TG_CHAT_ID:-}"
   info "config.env 已存在，保持不变"
 fi
 
-# 8. 首次运行：建基线（有 token 时正常跑，无 token 时用 --dry-run 建基线）
+# 8. 首次运行：建基线（配了通道就正常跑，没配通道用 --dry-run 建基线）
 info "首次运行，建 KEV 基线……"
-if grep -q "^PUSHPLUS_TOKEN=[^[:space:]]" "$INSTALL_DIR/config.env" 2>/dev/null; then
+if has_channel; then
   python3 "$INSTALL_DIR/vuln-watch.py" --config "$INSTALL_DIR/config.env" --state "$INSTALL_DIR/seen.json" || info "首次运行未成功，可稍后手动跑一次"
 else
   python3 "$INSTALL_DIR/vuln-watch.py" --config "$INSTALL_DIR/config.env" --state "$INSTALL_DIR/seen.json" --dry-run || info "基线建立未成功，可稍后手动跑一次"
@@ -127,18 +175,25 @@ else
 fi
 
 # 10. 测试推送（可选）
-if [ -r /dev/tty ] && grep -q "^PUSHPLUS_TOKEN=[^[:space:]]" "$INSTALL_DIR/config.env" 2>/dev/null; then
+if [ -r /dev/tty ] && has_channel; then
   printf "发一条测试推送验证通道？[y/N] "
   { read -r ans < /dev/tty; } 2>/dev/null || ans=""
   case "$ans" in
     y|Y|yes|YES)
-      python3 "$INSTALL_DIR/vuln-watch.py" --config "$INSTALL_DIR/config.env" --state "$INSTALL_DIR/seen.json" --test && info "测试推送已发，请看微信" || info "测试推送失败，请检查 token"
+      python3 "$INSTALL_DIR/vuln-watch.py" --config "$INSTALL_DIR/config.env" --state "$INSTALL_DIR/seen.json" --test && info "测试推送已发，请查收" || info "测试推送失败，请检查配置"
       ;;
   esac
 fi
 
 echo
 echo "安装完成。"
+channels=""
+grep -q "^PUSHPLUS_TOKEN=[^[:space:]]" "$INSTALL_DIR/config.env" 2>/dev/null && channels="微信 PushPlus"
+if grep -q "^TG_BOT_TOKEN=[^[:space:]]" "$INSTALL_DIR/config.env" 2>/dev/null && grep -q "^TG_CHAT_ID=[^[:space:]]" "$INSTALL_DIR/config.env" 2>/dev/null; then
+  channels="${channels:+$channels + }Telegram"
+fi
+[ -n "$channels" ] || channels="未配置"
+echo "  推送通道：$channels"
 echo "  脚本：$INSTALL_DIR/vuln-watch.py"
 echo "  配置：$INSTALL_DIR/config.env（600）"
 echo "  关键词：$INSTALL_DIR/keywords.txt"
