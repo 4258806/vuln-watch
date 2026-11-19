@@ -23,21 +23,28 @@ vuln-watch: CISA KEV 漏洞监控。
 相关度标注：keywords.txt 里每行写「关键词=标注」，命中厂商/产品/漏洞名就标【相关】。
 keywords.txt 不存在时不标注（全部为【其他】）。keywords.txt 是各人自己的设备清单，
 不要放进公开仓库；仓库里只放 keywords.example.txt 作示例。
+
+翻译：描述、名称、处置默认用 MyMemory 免费接口翻成中文（config.env 里 TRANSLATE=0 可关；
+翻译失败时用原文，绝不因此不推送）。修复信息：每条附 notes 里第一个厂商公告链接
+（没有时不显示）和 NVD 详情链接。
 """
 import argparse
 import html
 import json
 import os
+import re
 import sys
 import time
 import urllib.error
+import urllib.parse
 import urllib.request
 from datetime import date
 
 KEV_URL = "https://www.cisa.gov/sites/default/files/feeds/known_exploited_vulnerabilities.json"
 PUSHPLUS_URL = "https://www.pushplus.plus/send"
 TELEGRAM_API_URL = "https://api.telegram.org/bot%s/sendMessage"
-__version__ = "1.0.0"
+MYMEMORY_URL = "https://api.mymemory.translated.net/get"
+__version__ = "1.1.0"
 USER_AGENT = "vuln-watch/%s (personal KEV monitor)" % __version__
 FETCH_TIMEOUT = 30
 TG_MESSAGE_LIMIT = 4000
@@ -123,31 +130,82 @@ def esc(s):
     return html.escape(s or "", quote=False)
 
 
-def format_message(new_entries, today, keywords):
-    """拼 PushPlus 消息（html 模板）。返回 (title, content)。"""
+def translate_text(text, email="", timeout=10):
+    """用 MyMemory 免费接口把英文翻成中文。失败返回 None（调用方用原文）。"""
+    text = (text or "").strip()
+    if not text:
+        return None
+    params = {"q": text, "langpair": "en|zh-CN"}
+    if email:
+        params["de"] = email
+    url = MYMEMORY_URL + "?" + urllib.parse.urlencode(params)
+    try:
+        req = urllib.request.Request(url, headers={"User-Agent": USER_AGENT})
+        with urllib.request.urlopen(req, timeout=timeout) as resp:
+            if resp.status != 200:
+                return None
+            data = json.load(resp)
+    except Exception:
+        return None
+    if data.get("responseStatus") not in (200, "200"):
+        return None
+    if data.get("quotaFinished"):
+        return None
+    out = ((data.get("responseData") or {}).get("translatedText") or "").strip()
+    if not out or out == text:
+        return None
+    if out.startswith(("QUERY LENGTH", "INVALID", "NO QUERY", "MYMEMORY WARNING")):
+        return None
+    return out
+
+
+SKIP_LINK_HOSTS = {"nvd.nist.gov", "www.cisa.gov"}
+
+
+def vendor_url(entry):
+    """从 KEV 的 notes 里找第一个非 CISA/NVD 的链接（一般是厂商公告）。"""
+    for m in re.finditer(r"https?://[^\s;]+", entry.get("notes") or ""):
+        host = urllib.parse.urlparse(m.group(0)).netloc.lower()
+        if host and host not in SKIP_LINK_HOSTS:
+            return m.group(0)
+    return ""
+
+
+def format_message(new_entries, today, keywords, translate=None):
+    """拼 PushPlus 消息（html 模板）。返回 (title, content)。
+    translate：可调用对象，translate(英文) -> 中文或 None（None 时用原文）。"""
     n = len(new_entries)
     title = "【漏洞监控】新增 %d 条 KEV 漏洞（%s）" % (n, today)
     parts = ["今日 CISA KEV 清单新增 %d 条（在野外已被利用的漏洞），请留意：<br>" % n]
     for e in new_entries:
         tags = relevance_tags(e, keywords)
         flag = "【相关：%s】" % "、".join(tags) if tags else "【其他】"
+        name = e.get("vulnerabilityName", "")
         desc = (e.get("shortDescription") or "").strip()
+        action = (e.get("requiredAction") or "").strip()
+        if translate:
+            name = translate(name) or name
+            desc = translate(desc) or desc
+            action = translate(action) or action
         if len(desc) > 200:
             desc = desc[:200] + "……"
         parts.append("<br>————<br>")
         parts.append("<b>%s %s</b><br>" % (esc(e.get("cveID", "")), flag))
         parts.append("厂商/产品：%s<br>" % esc(
             "%s - %s" % (e.get("vendorProject", ""), e.get("product", ""))))
-        parts.append("名称：%s<br>" % esc(e.get("vulnerabilityName", "")))
+        parts.append("名称：%s<br>" % esc(name))
         parts.append("入库：%s，修复期限：%s<br>" % (
             esc(e.get("dateAdded", "")), esc(e.get("dueDate", ""))))
         if desc:
             parts.append("描述：%s<br>" % esc(desc))
-        action = (e.get("requiredAction") or "").strip()
         if len(action) > 120:
             action = action[:120] + "……"
         if action:
             parts.append("处置：%s<br>" % esc(action))
+        vurl = vendor_url(e)
+        if vurl:
+            parts.append("修复参考：<a href=\"%s\">厂商公告</a><br>" % html.escape(vurl, quote=True))
+        parts.append("详情：<a href=\"https://nvd.nist.gov/vuln/detail/%s\">NVD</a><br>" % esc(e.get("cveID", "")))
     parts.append("<br>————<br>来源：CISA KEV（vuln-watch）")
     return title, "".join(parts)
 
@@ -280,9 +338,16 @@ def main():
         return 0
 
     new_entries.sort(key=lambda e: e.get("dateAdded", ""))
-    title, content = format_message(new_entries, today, keywords)
+    translate_on = cfg.get("TRANSLATE", "1").strip().lower() not in ("0", "false", "no", "off")
+    translate_fn = None
+    if translate_on:
+        email = cfg.get("MYMEMORY_EMAIL", "").strip()
+        translate_fn = lambda t: translate_text(t, email=email)
+    title, content = format_message(new_entries, today, keywords, translate=translate_fn)
     related = sum(1 for e in new_entries if relevance_tags(e, keywords))
     log("新增 %d 条，其中与自家设备相关 %d 条" % (len(new_entries), related))
+    if translate_fn:
+        log("翻译已开启（MyMemory），失败时用原文")
     if args.dry_run:
         print("----- 微信（PushPlus）标题 -----")
         print(title)
