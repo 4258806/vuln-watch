@@ -54,21 +54,20 @@ CVE-2024-10441 【相关：群晖】
 名称：Synology DiskStation Manager (DSM) 输出编码或转义不当漏洞
 入库：2026-11-18，修复期限：2026-11-21
 描述：Synology DSM 在 Synology BeeStation OS (BSM) 的系统插件守护程序中存在不当编码或输出转义漏洞，远程攻击者可能通过未指定的途径执行任意代码。
-处置：根据供应商的说明采取缓解措施，确保遵守CISA的BOD 26-04《基于风险的安全性更新优先级排序》（见备注中的网址）指南和CISA的《取证分类要求》（见备注中的网址）。遵循适用于云服务的BOD 26-04指南，或者在没有可用的缓解措施时停……
 修复参考：厂商公告（https://www.synology.com/zh-tw/security/advisory/Synology_SA_24_20）
 详情：NVD（https://nvd.nist.gov/vuln/detail/CVE-2024-10441）
 ————
 来源：CISA KEV（vuln-watch）
 ```
 
-命中 `keywords.txt` 里关键词的条目标【相关】，没命中的标【其他】。描述、名称、处置默认翻成中文（MyMemory 免费接口，失败时显示英文原文）；每条附厂商公告链接（KEV 清单 notes 里的第一个厂商链接，没有时不显示）和 NVD 详情链接，点进去就能看到具体怎么修（一般是升级到哪个版本）。
+命中 `keywords.txt` 里关键词的条目标【相关】，没命中的标【其他】。描述、名称默认翻成中文（MyMemory 免费接口，失败时显示英文原文）；每条附厂商公告链接（KEV 清单 notes 里的第一个厂商链接，没有时不显示）和 NVD 详情链接，点进去就能看到具体怎么修（一般是升级到哪个版本）。处置（requiredAction）不显示——1786 条里只有 44 种写法，基本都是套话。
 
 ### 版本
 
-当前版本 1.1.0，改动见 [CHANGELOG.md](CHANGELOG.md)。一键安装默认装 main 分支最新版；想固定用某个版本：
+当前版本 1.1.1，改动见 [CHANGELOG.md](CHANGELOG.md)。一键安装默认装 main 分支最新版；想固定用某个版本：
 
 ```bash
-VULN_WATCH_BASE_URL=https://raw.githubusercontent.com/4258806/vuln-watch/v1.1.0 curl -fsSL https://raw.githubusercontent.com/4258806/vuln-watch/main/install.sh | sudo bash
+VULN_WATCH_BASE_URL=https://raw.githubusercontent.com/4258806/vuln-watch/v1.1.1 curl -fsSL https://raw.githubusercontent.com/4258806/vuln-watch/main/install.sh | sudo bash
 ```
 
 ### 手动安装
@@ -144,7 +143,7 @@ MYMEMORY_EMAIL=你的邮箱（可选；填了 MyMemory 每天额度从 5000 提�
 - 首次运行：把当前清单全部记为已见，不推送（避免 1786 条全推出来）。
 - 之后每次运行：只推新增的；没有新增就不发任何消息。
 - 某个通道推送失败时不更新状态，下次运行会重试（已成功的通道可能收到一条重复消息）。
-- 翻译：描述、名称、处置默认用 MyMemory 免费接口翻成中文（无 key；`TRANSLATE=0` 可关）。翻译失败、额度用完时自动用英文原文，绝不因此不推送。MyMemory 匿名额度每天 5000 字符/IP，一般一天 1-2 条新漏洞够用；不够用时在 config.env 里填 `MYMEMORY_EMAIL`，额度提到 50000 字符/天。
+- 翻译：描述、名称默认用 MyMemory 免费接口翻成中文（无 key；`TRANSLATE=0` 可关）。翻译失败、额度用完时自动用英文原文，绝不因此不推送。MyMemory 匿名额度每天 5000 字符/IP，一般一天 1-2 条新漏洞够用；不够用时在 config.env 里填 `MYMEMORY_EMAIL`，额度提到 50000 字符/天。
 - 修复信息：每条附厂商公告链接（KEV 清单 notes 里第一个非 CISA/NVD 的链接）和 NVD 详情链接。
 - Telegram 单条消息上限 4096 字符，内容超长时自动分多条发。
 - `--dry-run` 只打印不发送；`--test` 给已配置的每个通道各发一条测试推送。
