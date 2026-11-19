@@ -134,5 +134,102 @@ class TestState(unittest.TestCase):
             self.assertEqual(seen, set())
 
 
+class TestVendorUrl(unittest.TestCase):
+    def test_vendor_first(self):
+        e = _entry(notes="https://www.synology.com/zh-tw/security/advisory/Synology_SA_24_20 ; BOD 26-04: https://www.cisa.gov/news-events/directives/bod-26-04 ; https://nvd.nist.gov/vuln/detail/CVE-2024-10441")
+        self.assertEqual(
+            vw.vendor_url(e),
+            "https://www.synology.com/zh-tw/security/advisory/Synology_SA_24_20")
+
+    def test_skips_nvd_and_cisa(self):
+        e = _entry(notes="https://nvd.nist.gov/vuln/detail/CVE-2021-39793 ; BOD 26-04: https://www.cisa.gov/news-events/directives/bod-26-04")
+        self.assertEqual(vw.vendor_url(e), "")
+
+    def test_vendor_after_nvd(self):
+        e = _entry(notes="https://nvd.nist.gov/vuln/detail/CVE-2026-1 ; https://github.com/BerriAI/litellm/security/advisories/GHSA-wxxx-gvqv-xp7p")
+        self.assertEqual(
+            vw.vendor_url(e),
+            "https://github.com/BerriAI/litellm/security/advisories/GHSA-wxxx-gvqv-xp7p")
+
+    def test_no_notes(self):
+        self.assertEqual(vw.vendor_url(_entry()), "")
+
+
+class FakeResponse:
+    def __init__(self, status, body):
+        self.status = status
+        self._body = body
+
+    def read(self):
+        return self._body
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *args):
+        return False
+
+
+class TestTranslateText(unittest.TestCase):
+    def setUp(self):
+        self._real_urlopen = vw.urllib.request.urlopen
+
+    def tearDown(self):
+        vw.urllib.request.urlopen = self._real_urlopen
+
+    def _fake_json(self, payload):
+        vw.urllib.request.urlopen = lambda req, timeout=None: FakeResponse(
+            200, json.dumps(payload).encode("utf-8"))
+
+    def test_success(self):
+        self._fake_json({"responseData": {"translatedText": "中文译文"},
+                         "responseStatus": 200, "quotaFinished": False})
+        self.assertEqual(vw.translate_text("English text"), "中文译文")
+
+    def test_network_error(self):
+        import urllib.error
+        vw.urllib.request.urlopen = lambda req, timeout=None: (_ for _ in ()).throw(
+            urllib.error.URLError("no network"))
+        self.assertIsNone(vw.translate_text("English text"))
+
+    def test_quota_warning_text(self):
+        self._fake_json({"responseData": {"translatedText": "MYMEMORY WARNING: YOU USED ALL AVAILABLE FREE TRANSLATIONS FOR TODAY. NEXT AVAILABLE IN 07 HOURS"},
+                         "responseStatus": 200, "quotaFinished": None})
+        self.assertIsNone(vw.translate_text("English text"))
+
+    def test_quota_finished(self):
+        self._fake_json({"responseData": {"translatedText": "中文译文"},
+                         "responseStatus": 200, "quotaFinished": True})
+        self.assertIsNone(vw.translate_text("English text"))
+
+    def test_same_as_input(self):
+        self._fake_json({"responseData": {"translatedText": "English text"},
+                         "responseStatus": 200, "quotaFinished": False})
+        self.assertIsNone(vw.translate_text("English text"))
+
+
+class TestFormatMessageTranslated(unittest.TestCase):
+    def test_translated_and_links(self):
+        notes = ("https://www.synology.com/zh-tw/security/advisory/Synology_SA_24_20 ; "
+                 "https://nvd.nist.gov/vuln/detail/CVE-2024-10441")
+        _, content = vw.format_message(
+            [_entry(cveID="CVE-2024-10441", notes=notes)],
+            "2026-11-19", [],
+            translate=lambda t: "【译】" + t)
+        self.assertIn("【译】Acme Widget RCE", content)
+        self.assertIn("【译】Acme Widget has a flaw.", content)
+        self.assertIn("【译】Apply the vendor patch.", content)
+        self.assertIn('<a href="https://www.synology.com/zh-tw/security/advisory/Synology_SA_24_20">厂商公告</a>', content)
+        self.assertIn('<a href="https://nvd.nist.gov/vuln/detail/CVE-2024-10441">NVD</a>', content)
+
+    def test_translate_none_falls_back(self):
+        _, content = vw.format_message(
+            [_entry()], "2026-11-19", [], translate=lambda t: None)
+        self.assertIn("Acme Widget RCE", content)
+        self.assertIn("Acme Widget has a flaw.", content)
+        self.assertIn('<a href="https://nvd.nist.gov/vuln/detail/CVE-2026-12345">NVD</a>', content)
+        self.assertNotIn("厂商公告", content)
+
+
 if __name__ == "__main__":
     unittest.main()
