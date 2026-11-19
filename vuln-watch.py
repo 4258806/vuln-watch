@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 """
 vuln-watch: CISA KEV 漏洞监控。
-每天拉一次 CISA Known Exploited Vulnerabilities 清单，有新增条目就推送。
+定时拉一次 CISA Known Exploited Vulnerabilities 清单，有新增条目就推送。
 推送通道二选一或两个都要：
   微信 PushPlus：config.env 里填 PUSHPLUS_TOKEN
   Telegram：config.env 里填 TG_BOT_TOKEN + TG_CHAT_ID
@@ -147,7 +147,7 @@ def format_message(new_entries, today, keywords):
             action = action[:120] + "……"
         if action:
             parts.append("处置：%s<br>" % esc(action))
-    parts.append("<br>————<br>来源：CISA KEV（vuln-watch，每日 09:00）")
+    parts.append("<br>————<br>来源：CISA KEV（vuln-watch）")
     return title, "".join(parts)
 
 
