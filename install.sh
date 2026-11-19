@@ -149,6 +149,7 @@ if [ ! -f "$INSTALL_DIR/config.env" ]; then
     echo "PUSHPLUS_TOKEN=$pp_token"
     echo "TG_BOT_TOKEN=$tg_token"
     echo "TG_CHAT_ID=$tg_chat"
+    echo "TRANSLATE=1"
   } > "$INSTALL_DIR/config.env"
   chmod 600 "$INSTALL_DIR/config.env"
   has_channel || info "config.env 已创建，但没有配任何推送通道——请填好再跑：$INSTALL_DIR/config.env"
